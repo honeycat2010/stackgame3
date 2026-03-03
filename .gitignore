@@ -39,3 +39,12 @@
 
 # debug information files
 *.dwo
+
+/build/
+/out/
+/bin/
+*.exe
+*.obj
+*.pdb
+*.ilk
+*.log
