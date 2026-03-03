@@ -1,0 +1,10 @@
+^C:\USERS\USER\DESKTOP\HONEYCAT2010\GAME_DEV\DEV\STACKGAME_3\BUILD\CMAKEFILES\3B3C1DC696B29CA5C906C06AC41C4B4F\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/USER/Desktop/honeycat2010/Game_dev/dev/stackgame_3 -BC:/Users/USER/Desktop/honeycat2010/Game_dev/dev/stackgame_3/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/USER/Desktop/honeycat2010/Game_dev/dev/stackgame_3/build/stackgame3_pr1.slnx
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

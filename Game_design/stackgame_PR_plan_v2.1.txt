@@ -1,0 +1,165 @@
+stackgame_3 구현 목표 (PR 단계별) - 기준 문서: stackgame_2_v2.1.txt
+
+핵심 고정 규칙
+- Logical 480x720 단일 기준, 레터박스/스케일은 렌더 단계에서만 처리
+- 판정은 world-space, 렌더는 screen-space(screenY = worldY - camY)로 분리
+- 교차 판정: prevWorldBottomY < worldLineY && currWorldBottomY >= worldLineY
+- worldLineY = catcherScreenLineY + camY
+- 스크롤: total 15배수에서만 camY += 720
+- InGame 단일 분기: Running / Pause / ResumeCountdown
+- GameOver: 진입 후 3초 입력 무시, 이후 메뉴 입력 활성화
+- 캐쳐 애니메이션은 렌더 전용(판정/히트맵/월드좌표와 분리)
+
+[PR 1] 프레임워크/상태머신 기반 구축
+목표
+- Title -> Menu -> InGame -> GameOver 흐름과 공통 루프 기반 확정
+
+구현 항목
+- SceneManager, 메인 루프, 입력 라우팅 계층
+- 상태 전환 기본 경로 + Pause에서 Title/Quit 예외 경로
+- 공통 타이머/시간 유틸
+
+완료 기준
+- 타이틀/메뉴/인게임/종료 전환 안정 동작
+
+[PR 2] 렌더 해상도 정책 + 좌표계 분리
+목표
+- 2:3 고정 출력과 월드/스크린 분리 규칙 구현
+
+구현 항목
+- 480x720 logical viewport 및 letterbox 계산
+- 월드 객체 렌더 경로와 스크린 고정 UI 경로 분리
+- camY 적용 범위(월드만) 강제
+
+완료 기준
+- 스크롤 시 캐쳐/HUD/Pause/GameOver가 고정 유지
+
+[PR 3] Menu/Settings/Config 영속화
+목표
+- 설정 UI와 실시간 반영/저장 완성
+
+구현 항목
+- BGM/FX/DisplayMode 옵션 조작
+- 값 변경 즉시 반영, 종료 시 config 저장
+- DisplayMode 실패 롤백
+
+완료 기준
+- 설정값 재실행 후 유지
+
+[PR 4] InGame 기본 루프(스폰/낙하/미스)
+목표
+- 최소 플레이 루프 확보
+
+구현 항목
+- 5레인 랜덤 스폰
+- 낙하 업데이트/캐쳐 좌우 이동
+- miss 3회 GameOver 전환
+- HUD(Stage, PlacedCount/Target, total, miss)
+
+완료 기준
+- 스폰 -> 낙하 -> 미스 처리 루프 정상
+
+[PR 5] 캐치 판정 코어(v2.1 규칙)
+목표
+- world-space 교차 판정과 1회 판정 보장
+
+구현 항목
+- prev/curr worldBottomY와 worldLineY 교차 조건 판정
+- 중심점 1픽셀 히트맵(255,0,255) 체크
+- judged 플래그로 중복 판정 차단
+- 동일 프레임 순서 고정(판정 먼저, 스크롤 후)
+
+완료 기준
+- 동일 빵 중복 캐치/미스 0건
+
+[PR 6] 스택/스크롤/카운터 생명주기
+목표
+- total/PlacedCount 역할 분리 및 스크롤 규칙 확정
+
+구현 항목
+- 성공 시 total 증가 + 스택 적재
+- total 15/30/45...에서만 camY += 720
+- total: 런 전체 유지, 재시작 시 0
+- PlacedCount: 스테이지 시작 시 0
+
+완료 기준
+- 픽셀 높이 기반 스크롤 경로 제거
+
+[PR 7] Pause/ResumeCountdown + 확인 팝업
+목표
+- InGame 내부 Pause 상태 완성
+
+구현 항목
+- Pause 메뉴(Resume/Title/Quit)
+- Title/Quit 확인 팝업(서브상태)
+- Pause/ResumeCountdown 동안 월드 업데이트 정지
+- ResumeCountdown 중 Esc만 허용(Esc -> Pause)
+
+완료 기준
+- Pause 상태 누수 없이 동작
+
+[PR 8] GameOver 입력 게이팅
+목표
+- GameOver 입력 활성화 타이밍 규칙 구현
+
+구현 항목
+- 진입 후 3초간 입력 무시
+- 3초 이후 메뉴 입력 활성화
+- 메뉴 선택(재시작/타이틀/종료)
+
+완료 기준
+- 3초 이전 입력 무효 보장
+
+[PR 9] 캐쳐 스프라이트 애니메이션(v2.1 신규)
+목표
+- 상태별 2프레임 애니메이션 규칙 구현(렌더 전용)
+
+구현 항목
+- 리소스 구조: idle(0/1), move(0/1), miss(0/1)
+- Running: 이동 중 move 0<->1 토글(고정 fps), 정지 중 idle frame=0 고정
+- Pause/ResumeCountdown: 애니메이션 정지, idle frame=0 유지
+- miss: miss 스프라이트 사용(단순 구현 시 frame=0 고정 허용)
+- 프레임 인덱스 0/1 범위 강제
+- 애니메이션 타이머는 InGame에서만 증가
+
+완료 기준
+- 애니메이션이 판정/좌표계/camY와 독립 동작
+
+[PR 10] Stage 데이터/변환 파이프라인
+목표
+- 밸런싱 데이터 외부화
+
+구현 항목
+- Stage JSON 로더/검증기
+- Stage N 0.5초 표시 및 다음 스테이지 전환
+- Excel(CSV) -> JSON 변환 스크립트 + 배치
+
+완료 기준
+- 코드 수정 없이 난이도 조정 가능
+
+[PR 11] 디버그 로그/회귀 테스트 마감
+목표
+- 핵심 규칙 위반 즉시 검출 체계 완성
+
+구현 항목
+- 로그 채널: spawn/catch/overhang/COM
+- 필수 필드 구현:
+  - catch: breadId, prevWorldBottomY, currWorldBottomY, worldLineY, centerWorldX/Y, hitmapX/Y, hitColor, judgedResult, judgedFlagBefore/After
+  - scroll: totalBefore/After, scrollTriggered, camYBefore/After
+  - pause: pauseEnterTime, resumeCountdownStart/End, stateTransition
+- 회귀 테스트: 교차 판정, 1회 판정, 15배수 스크롤, Pause 정지, GameOver 입력 게이팅, 애니메이션 상태 규칙
+
+완료 기준
+- 핵심 테스트 통과
+- 필수 로그 필드 누락 0건
+
+--------------------------------------------------
+권장 실행 순서
+1) PR1 -> PR2 -> PR3
+2) PR4 -> PR5 -> PR6
+3) PR7 -> PR8 -> PR9
+4) PR10 -> PR11
+
+릴리즈 게이트
+- Must-pass: 교차 판정 안정성, Pause 정지, GameOver 3초 입력 잠금, 애니메이션 상태 규칙
+- Must-have: 문서 7.1 필수 로그 필드 전부 출력

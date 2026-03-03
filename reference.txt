@@ -1,0 +1,66 @@
+# reference.txt
+# PR1~PR4에서 만든 함수 확인용 문서 (게임 구현과 분리)
+
+[RenderLayout.cpp]
+
+1) ViewportRect CalculateLetterboxViewport(int windowWidth, int windowHeight, int logicalWidth, int logicalHeight)
+- 역할: 윈도우 크기와 논리 해상도 비율을 비교해 레터박스 viewport를 계산한다.
+- 규칙:
+  - 논리 비율은 480:720(2:3) 기준
+  - 좌우 또는 상하 여백 중 한 방향만 생성
+  - 입력값이 0 이하이면 0 사각형 반환
+
+[InputRouter.cpp]
+
+2) InputAction ParseRawInput(const std::string& raw)
+- 역할: 문자열 입력을 공통 InputAction으로 변환한다.
+
+3) bool IsAllowedInTitle(InputAction action)
+- 역할: Title 씬 허용 입력만 통과시킨다.
+
+4) bool IsAllowedInMenu(InputAction action)
+- 역할: Menu 씬 허용 입력만 통과시킨다.
+
+5) bool IsAllowedInInGame(InGameSubState subState, InputAction action)
+- 역할: InGame 상태/서브상태 기준 입력 허용 범위를 제한한다.
+
+6) bool IsAllowedInGameOver(InputAction action)
+- 역할: GameOver 씬 허용 입력만 통과시킨다.
+
+7) InputAction InputRouter::Route(AppScene scene, InGameSubState subState, const std::string& raw) const
+- 역할: 씬/서브상태 규칙을 적용해 최종 액션을 반환한다.
+
+[GameApp.cpp]
+
+8) bool GameApp::HandleInGameTickCommand(const std::string& line)
+- 역할: InGame에서 tick <sec> 명령을 파싱하고 시뮬레이션 업데이트를 호출한다.
+- 주의:
+  - sec는 0보다 커야 하며, 유효하지 않으면 사용법만 출력하고 종료한다.
+
+9) void GameApp::UpdateInGameSimulation(double dtSec)
+- 역할: PR4 핵심 루프(스폰/낙하/교차 감지/기본 미스)를 수행한다.
+- 규칙:
+  - spawnTimer 누적으로 주기마다 SpawnBread 호출
+  - bread.prevBottomY < worldLineY && currBottomY >= worldLineY면 miss 처리
+  - miss 누적이 3 이상이면 GameOver 요청
+
+10) void GameApp::SpawnBread()
+- 역할: 5레인 중 하나를 골라 빵을 생성한다.
+- 주의:
+  - 현재 PR4 단계이므로 캐치 판정 없이 미스 흐름 확인용으로 사용한다.
+
+11) void GameApp::ResetInGameSession()
+- 역할: InGame 시작/재시작 시 HUD와 낙하 객체 상태를 초기화한다.
+
+12) std::vector<double> GameApp::BuildSpawnLanes() const
+- 역할: 논리폭 480 기준 5개 스폰 레인 중심 X 좌표를 생성한다.
+
+13) void GameApp::PrintInGameHudFrame() const
+- 역할: Stage/Placed/Target/total/miss와 activeBreads를 표시한다.
+- 주의:
+  - PR4에서는 HUD가 표시 프레임 역할만 수행한다.
+
+[SceneManager.cpp]
+
+14) void SceneManager::ApplyIfRequested()
+- 역할: 요청된 씬 전환을 현재 씬에 반영한다.
