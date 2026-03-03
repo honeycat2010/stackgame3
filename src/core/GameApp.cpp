@@ -127,7 +127,7 @@ void GameApp::PrintInGameHudFrame() const {
         << " | total=" << hudTotal_
         << " | miss=" << hudMiss_ << "/3"
         << " | activeBreads=" << activeBreads_.size()
-        << " | lineY=" << worldLineY_ << "\n";
+        << " | catcherX=" << catcherX_ << "\n";
 }
 
 void GameApp::HandleSceneInput(const InputAction action) {
@@ -155,6 +155,18 @@ void GameApp::HandleSceneInput(const InputAction action) {
     }
 
     if (current == AppScene::InGame) {
+        if (action == InputAction::MoveLeft) {
+            catcherX_ -= catcherMoveSpeed_ * 0.1;
+            if (catcherX_ < 0.0) catcherX_ = 0.0;
+            return;
+        }
+
+        if (action == InputAction::MoveRight) {
+            catcherX_ += catcherMoveSpeed_ * 0.1;
+            if (catcherX_ > static_cast<double>(kLogicalWidth)) catcherX_ = static_cast<double>(kLogicalWidth);
+            return;
+        }
+
         if (action == InputAction::Confirm) {
             scene_.Request(AppScene::GameOver);
         } else if (action == InputAction::Back) {
@@ -195,6 +207,8 @@ bool GameApp::HandleInGameTickCommand(const std::string& line) {
 }
 
 void GameApp::UpdateInGameSimulation(const double dtSec) {
+    const double worldLineY = catcherLineScreenY_ + camY_;
+
     spawnTimerSec_ += dtSec;
     while (spawnTimerSec_ >= spawnIntervalSec_) {
         spawnTimerSec_ -= spawnIntervalSec_;
@@ -206,15 +220,29 @@ void GameApp::UpdateInGameSimulation(const double dtSec) {
         bread.y += breadFallSpeed_ * dtSec;
         const double currBottomY = bread.y + bread.height;
 
-        if (!bread.judged
-            && bread.prevBottomY < worldLineY_
-            && currBottomY >= worldLineY_) {
+        if (!bread.judged && bread.prevBottomY < worldLineY && currBottomY >= worldLineY) {
+            int hitmapX = -1;
+            int hitmapY = -1;
+            Rgb color{};
+            const bool caught = IsCatchHitByCenterPoint(bread, hitmapX, hitmapY, color);
+
             bread.judged = true;
-            hudMiss_ += 1;
-            std::cout << "[MISS] breadId=" << bread.id
-                      << " prevBottom=" << bread.prevBottomY
-                      << " currBottom=" << currBottomY
-                      << " lineY=" << worldLineY_ << "\n";
+            if (caught) {
+                std::cout << "[CATCH] breadId=" << bread.id
+                          << " prevBottom=" << bread.prevBottomY
+                          << " currBottom=" << currBottomY
+                          << " lineY=" << worldLineY
+                          << " hitmap=(" << hitmapX << "," << hitmapY << ")"
+                          << " color=(" << color.r << "," << color.g << "," << color.b << ")\n";
+            } else {
+                hudMiss_ += 1;
+                std::cout << "[MISS] breadId=" << bread.id
+                          << " prevBottom=" << bread.prevBottomY
+                          << " currBottom=" << currBottomY
+                          << " lineY=" << worldLineY
+                          << " hitmap=(" << hitmapX << "," << hitmapY << ")"
+                          << " color=(" << color.r << "," << color.g << "," << color.b << ")\n";
+            }
         }
     }
 
@@ -258,6 +286,8 @@ void GameApp::ResetInGameSession() {
     nextBreadId_ = 1;
     spawnTimerSec_ = 0.0;
     activeBreads_.clear();
+    camY_ = 0.0;
+    catcherX_ = static_cast<double>(kLogicalWidth) * 0.5;
 }
 
 std::vector<double> GameApp::BuildSpawnLanes() const {
@@ -270,6 +300,41 @@ std::vector<double> GameApp::BuildSpawnLanes() const {
     }
 
     return lanes;
+}
+
+bool GameApp::IsCatchHitByCenterPoint(const ActiveBread& bread, int& outHitmapX, int& outHitmapY, Rgb& outColor) const {
+    const double centerWorldX = bread.x;
+    const double centerWorldY = bread.y + (bread.height * 0.5);
+
+    const double centerScreenX = centerWorldX;
+    const double centerScreenY = centerWorldY - camY_;
+
+    const double catcherLeft = catcherX_ - (static_cast<double>(catcherHitmapWidth_) * 0.5);
+    const double catcherTop = catcherTopScreenY_;
+
+    const int hitmapX = static_cast<int>(centerScreenX - catcherLeft);
+    const int hitmapY = static_cast<int>(centerScreenY - catcherTop);
+
+    outHitmapX = hitmapX;
+    outHitmapY = hitmapY;
+    outColor = SampleCatcherHitmap(hitmapX, hitmapY);
+
+    return outColor.r == 255 && outColor.g == 0 && outColor.b == 255;
+}
+
+GameApp::Rgb GameApp::SampleCatcherHitmap(const int hitmapX, const int hitmapY) const {
+    if (hitmapX < 0 || hitmapY < 0 || hitmapX >= catcherHitmapWidth_ || hitmapY >= catcherHitmapHeight_) {
+        return {0, 0, 0};
+    }
+
+    const bool inMagentaBandX = (hitmapX >= 10 && hitmapX <= (catcherHitmapWidth_ - 10));
+    const bool inMagentaBandY = (hitmapY >= 8 && hitmapY <= (catcherHitmapHeight_ - 8));
+
+    if (inMagentaBandX && inMagentaBandY) {
+        return {255, 0, 255};
+    }
+
+    return {0, 0, 0};
 }
 
 std::string GameApp::SceneName(const AppScene scene) {
